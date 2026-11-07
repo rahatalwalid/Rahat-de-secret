@@ -1,0 +1,10 @@
+{
+  "name": "rahat-desecret",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --no-warnings tests/run.mjs",
+    "check": "node --check worker/src/index.js && node --check public/app.js"
+  }
+}
