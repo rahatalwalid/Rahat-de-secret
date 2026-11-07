@@ -17,3 +17,4 @@ docs/                SETUP.md, PROVIDERS.md, STATUS.md
 ```
 
 Run the tests locally (Node 22+): `npm test`. Setup guide: `docs/SETUP.md`.
+Deployed from Cloudflare.
