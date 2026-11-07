@@ -6,7 +6,7 @@ compatibility_date = "2026-10-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "rahat-desecret-db"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "ffebadf3-910e-4eac-8af7-ee1725668259"
 
 # Workers AI binding (free daily allocation; fails closed above it on the Free plan).
 [ai]
