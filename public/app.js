@@ -144,18 +144,21 @@ function showAuth(mode, st = {}) {
 }
 
 /* ---------- shell + router ---------- */
-const NAV = [["home", "Home", "home"], ["chat", "Chat", "chat"], ["projects", "Projects", "folder"], ["tasks", "Tasks", "check"], ["agents", "Agents", "bot"], ["memory", "Memory", "book"], ["models", "Models", "cpu"], ["settings", "Settings", "gear"], ["files", "Files", "disk"]];
-const BOTTOM = ["home", "chat", "tasks", "models"];
+// v0.4: chat is home. Tasks and Models are no longer main navigation (reachable from Settings).
+const NAV = [["chat", "Chat", "chat"], ["projects", "Projects", "folder"], ["agents", "Agents", "bot"], ["memory", "Memory", "book"], ["files", "Files", "disk"], ["settings", "Settings", "gear"]];
+const BOTTOM = ["chat", "agents", "files", "projects"];
+const DEFAULT_AGENT = "rahat-ceo";
 async function startShell() {
   const app = $("#app");
   const link = ([id, label, icon]) => h("a", { class: "nav-item", href: "#/" + id, "data-nav": id }, svg(icon), label);
   const more = h("button", { type: "button", class: "nav-item", onclick: openMore, "data-nav": "more" }, svg("more"), "More");
   app.replaceChildren(h("div", { class: "shell" },
-    h("nav", { class: "rail", "aria-label": "Main" }, h("div", { class: "brand" }, "RDS"), NAV.slice(0, 7).map(link), h("div", { class: "spacer" }), link(NAV[7])),
+    h("nav", { class: "rail", "aria-label": "Main" }, h("div", { class: "brand" }, "RDS"), NAV.slice(0, -1).map(link), h("div", { class: "spacer" }), link(NAV[NAV.length - 1])),
     h("main", { class: "main" }, h("div", { class: "view", id: "view" })),
     h("nav", { class: "bottom", "aria-label": "Main" }, NAV.filter((n) => BOTTOM.includes(n[0])).map(link), more)));
-  try { const o = await api("/overview"); S.defaultModelKey = o.defaultModelKey || ""; } catch { /* shown on home */ }
-  if (!location.hash) location.hash = "#/home";
+  // v0.4: no longer depends on /api/overview, which was the endpoint failing with a 500.
+  try { const st = await api("/settings"); S.defaultModelKey = (st.settings && st.settings.default_model_key) || ""; } catch { /* chat shows it */ }
+  if (!location.hash || location.hash === "#/home" || location.hash === "#/") location.hash = "#/chat";
   route();
 }
 function openMore() {
@@ -166,8 +169,9 @@ function openMore() {
 const VIEWS = {};
 async function route() {
   if (!S.csrf) return;
-  const [, name = "home", arg] = location.hash.slice(1).split("/");
-  const id = VIEWS[name] ? name : "home";
+  const [, raw = "chat", arg] = location.hash.slice(1).split("/");
+  const name = raw === "home" ? "chat" : raw;
+  const id = VIEWS[name] ? name : "chat";
   if (S.abort) { S.abort.abort(); S.abort = null; }
   document.querySelectorAll("[data-nav]").forEach((a) => (id === a.dataset.nav ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
   const el = $("#view"); el.className = "view"; el.replaceChildren(h("p", { class: "muted" }, "Loading"));
@@ -241,6 +245,8 @@ VIEWS.chat = async (el, arg) => {
   const title = h("button", { type: "button", class: "thread-title", onclick: rename }, "New chat");
   const chip = h("button", { type: "button", class: "model-chip", onclick: choose }, h("span", { class: "dot" }), h("span", { class: "nm" }));
   const agentSel = h("select", { "aria-label": "Agent", onchange: () => ctxChange("agentId", agentSel.value) }, h("option", { value: "" }, "No agent"), agents.agents.map((a) => h("option", { value: a.id }, a.name + (a.status === "paused" ? " (paused)" : ""))));
+  // v0.4: a fresh chat starts with the Rahat CEO agent already selected.
+  if (!arg && agents.agents.some((a) => a.id === DEFAULT_AGENT && a.status === "active")) { st.agentId = DEFAULT_AGENT; agentSel.value = DEFAULT_AGENT; }
   const projSel = h("select", { "aria-label": "Project", onchange: () => ctxChange("projectId", projSel.value) }, h("option", { value: "" }, "No project"), projects.projects.map((p) => h("option", { value: p.id }, p.name)));
   const msgsIn = h("div", { class: "msgs-in" }), msgs = h("div", { class: "msgs", "aria-live": "polite" }, msgsIn);
   const input = h("textarea", { rows: "1", placeholder: "Message", "aria-label": "Message", maxlength: "12000" });
@@ -515,6 +521,7 @@ VIEWS.files = async (el) => {
     if (!st.configured) {
       body.replaceChildren(head, h("div", { class: "section" }, h("div", { class: "notice" },
         h("b", {}, "Storage is not connected yet. "),
+        st.configProblem ? h("div", { class: "notice bad section" }, st.configProblem) : null,
         "Add these four values in Cloudflare: Worker, Settings, Variables and Secrets.",
         h("div", { class: "small section" },
           h("div", {}, "B2_BUCKET — your bucket name, for example rahat-desecret"),
@@ -604,6 +611,28 @@ VIEWS.models = async (el) => {
 };
 
 /* ---------- Settings ---------- */
+/* ---------- diagnostics ---------- */
+async function showDiagnostics() {
+  const d = await api("/diagnostics");
+  const row = (x, kind) => {
+    const isEnv = kind === "env";
+    const badge = isEnv ? (x.ok ? "ok" : "warn") : (x.ok ? "ok" : "bad");
+    const text = isEnv ? (x.ok ? "set" : "missing") : (x.ok ? String(x.value) : "failed");
+    return h("div", { class: "item" },
+      h("div", { class: "grow" },
+        h("div", { class: "title" }, x.name),
+        x.error ? h("div", { class: "sub" }, x.error) : null),
+      h("span", { class: "badge " + badge }, text));
+  };
+  openDialog([
+    h("h2", {}, d.ok ? "All checks passed" : "Something is broken"),
+    h("p", { class: "small muted" }, "Database schema " + d.schemaVersion + " of " + d.expected),
+    h("div", { class: "list" }, d.checks.map((x) => row(x, "db"))),
+    h("div", { class: "list" }, d.environment.map((x) => row(x, "env"))),
+    h("p", { class: "small muted" }, "Send this screen if any row says failed."),
+  ]);
+}
+
 VIEWS.settings = async (el) => {
   const [sess, status, aud, me] = await Promise.all([api("/auth/sessions"), api("/system/status"), api("/audit?limit=25"), fetch("/api/auth/session", { credentials: "same-origin" }).then((r) => r.json())]);
   const reload = () => VIEWS.settings(el);
@@ -620,6 +649,12 @@ VIEWS.settings = async (el) => {
     h("div", { class: "section" }, h("h2", {}, "Security"),
       h("div", { class: "item" }, h("div", { class: "grow" }, h("div", { class: "title" }, "Password"), h("div", { class: "sub" }, "Changing it signs out every other device.")), btn("Change", { class: "sm", onclick: pw })),
       h("div", { class: "item" }, h("div", { class: "grow" }, h("div", { class: "title" }, "Two-step sign-in"), h("div", { class: "sub" }, me.totpEnabled ? "On. Login needs your password and an authenticator code." : "Off. Recommended: adds a code from an authenticator app.")), me.totpEnabled ? btn("Turn off", { class: "sm danger", onclick: off2fa }) : btn("Turn on", { class: "sm primary", onclick: guard(show2fa) }))),
+    h("div", { class: "section" }, h("h2", {}, "Advanced"),
+      h("p", { class: "small muted" }, "Tasks and the model catalog left the main menu. Nothing was deleted and both are still here."),
+      h("div", { class: "row wrap section" },
+        btn("Tasks", { class: "sm", onclick: () => (location.hash = "#/tasks") }),
+        btn("Models", { class: "sm", onclick: () => (location.hash = "#/models") }),
+        btn("Diagnostics", { class: "sm", onclick: guard(showDiagnostics) }))),
     h("div", { class: "section" }, h("div", { class: "row" }, h("h2", { class: "grow" }, "Signed-in devices"), sess.sessions.length > 1 ? btn("Sign out others", { class: "sm", onclick: guard(async () => { await api("/auth/logout-all", { method: "POST", body: {} }); toast("Other devices signed out", "ok"); reload(); }) }) : null),
       h("div", { class: "list" }, sess.sessions.map((s) => h("div", { class: "item" }, h("div", { class: "grow" }, h("div", { class: "title" }, s.userAgent ? s.userAgent.slice(0, 60) : "Unknown device"), h("div", { class: "sub" }, "Active " + ago(s.lastSeenAt) + ", expires " + new Date(s.expiresAt).toLocaleDateString())), s.current ? h("span", { class: "badge ok" }, "this device") : btn("Sign out", { class: "sm", onclick: guard(async () => { await api("/auth/sessions/" + s.sid, { method: "DELETE" }); reload(); }) }))))),
     h("div", { class: "section" }, h("h2", {}, "System"), kv([["Version", status.version], ["Database schema", `${status.schemaVersion} of ${status.expectedSchemaVersion}`], ["Free-only mode", "On, not switchable"], ["Workers AI binding", status.bindings.ai ? "Attached" : "Not attached"], ["Setup token secret", status.setupTokenConfigured ? "Configured" : "Missing"]]), status.warnings.length ? h("div", { class: "notice section" }, status.warnings.map((w) => h("p", {}, w))) : null),

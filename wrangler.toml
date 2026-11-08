@@ -1,3 +1,4 @@
+# Name must match the existing Worker in your Cloudflare dashboard.
 name = "rahatdesecret"
 main = "worker/src/index.js"
 compatibility_date = "2026-10-01"
@@ -7,6 +8,7 @@ binding = "DB"
 database_name = "rahat-desecret-db"
 database_id = "ffebadf3-910e-4eac-8af7-ee1725668259"
 
+# Workers AI binding (free daily allocation; fails closed above it on the Free plan).
 [ai]
 binding = "AI"
 
@@ -14,7 +16,10 @@ binding = "AI"
 directory = "./public"
 binding = "ASSETS"
 
+# Only non-secret, non-dashboard-tuned values live here (wrangler deploys overwrite dashboard variables).
 [vars]
 FREE_ONLY = "true"
+# Non-secret storage settings live here so a GitHub deploy cannot wipe them.
+# Secrets (B2_KEY_ID, B2_APP_KEY) stay in the dashboard only.
 B2_BUCKET = "rahat-desecret"
 B2_ENDPOINT = "https://s3.us-east-005.backblazeb2.com"

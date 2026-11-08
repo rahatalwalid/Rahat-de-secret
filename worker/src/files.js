@@ -39,6 +39,7 @@ function needStorage(env) {
   const cfg = readConfig(env);
   if (!cfg) throw new HttpError(503, "STORAGE_NOT_CONFIGURED",
     "Add the Backblaze secrets to this Worker first: B2_BUCKET, B2_ENDPOINT, B2_KEY_ID, B2_APP_KEY.");
+  if (cfg.problem) throw new HttpError(503, "STORAGE_CONFIG", cfg.problem);
   return cfg;
 }
 
@@ -59,15 +60,19 @@ export async function filesRoutes(c) {
   // ---------- status board ----------
   if (path === "/api/storage" && method === "GET") {
     const cfg = readConfig(env);
+    const problem = cfg && cfg.problem ? cfg.problem : null;
+    const good = !!cfg && !problem;
     const used = await usedBytes(db);
     const total = quotaBytes(env);
     const rows = await list(db, "SELECT * FROM files WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 200");
     const trash = await one(db, "SELECT COUNT(*) AS n FROM files WHERE deleted_at IS NOT NULL");
     return json({
-      configured: !!cfg,
+      configured: good,
+      configProblem: problem,
       provider: "Backblaze B2",
-      bucket: cfg ? cfg.bucket : "",
-      endpoint: cfg ? cfg.endpoint : "",
+      bucket: good ? cfg.bucket : (env.B2_BUCKET || "").trim(),
+      endpoint: good ? cfg.endpoint : (env.B2_ENDPOINT || "").trim(),
+      region: good ? cfg.region : "",
       usedBytes: used,
       totalBytes: total,
       remainingBytes: Math.max(0, total - used),

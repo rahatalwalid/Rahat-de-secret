@@ -220,6 +220,36 @@ async function testAuthGate() {
   ok(r.status === 201, "the same upload succeeds with the token", r.status);
 }
 
+
+async function testEndpointForgiveness() {
+  // 1. pasted without a scheme
+  calls.length = 0; store.clear();
+  let { c } = await ready({ ...CFG, B2_ENDPOINT: "s3.us-west-004.backblazeb2.com" });
+  let r = await c.call("GET", "/api/storage");
+  ok(r.data.configured === true && r.data.region === "us-west-004", "endpoint without https:// is accepted", r.data);
+  r = await up(c, "a.txt", bytes(8), "text/plain");
+  ok(r.status === 201, "upload works with a scheme-less endpoint", r.status);
+
+  // 2. trailing slash
+  calls.length = 0; store.clear();
+  ({ c } = await ready({ ...CFG, B2_ENDPOINT: ENDPOINT + "/" }));
+  r = await up(c, "b.txt", bytes(8), "text/plain");
+  ok(r.status === 201, "trailing slash on the endpoint is tolerated", r.status);
+
+  // 3. the friendly download URL -> a clear, named problem instead of a crash
+  ({ c } = await ready({ ...CFG, B2_ENDPOINT: "https://f001.backblazeb2.com/file/rahat-desecret" }));
+  r = await c.call("GET", "/api/storage");
+  ok(r.data.configured === false, "the download URL is not treated as a valid endpoint");
+  ok(/s3\./i.test(r.data.configProblem || ""), "the problem explains what the endpoint should look like", r.data.configProblem);
+  r = await up(c, "c.txt", bytes(8), "text/plain");
+  ok(r.status === 503 && r.data.error === "STORAGE_CONFIG", "uploads report STORAGE_CONFIG, not a 500", r.data);
+
+  // 4. nonsense host
+  ({ c } = await ready({ ...CFG, B2_ENDPOINT: "https://example.com" }));
+  r = await c.call("GET", "/api/storage");
+  ok(r.data.configured === false && /backblaze/i.test(r.data.configProblem || ""), "a non-Backblaze host is named as such", r.data.configProblem);
+}
+
 await testUnconfigured();
 await testHappyPath();
 await testHardStop();
@@ -227,6 +257,7 @@ await testSizeLimits();
 await testStorageErrors();
 await testSuggestions();
 await testAuthGate();
+await testEndpointForgiveness();
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

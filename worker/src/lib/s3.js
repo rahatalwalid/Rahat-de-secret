@@ -51,16 +51,31 @@ export async function signS3({ method, host, bucket, key = "", query = "", regio
   return out;
 }
 
-/** Reads B2 settings from the Worker environment. Returns null when not configured. */
+/** Reads B2 settings from the Worker environment. Returns null when unset, or {problem} when malformed. */
 export function readConfig(env) {
-  const rawEndpoint = (env.B2_ENDPOINT || "").trim();
   const bucket = (env.B2_BUCKET || "").trim();
   const keyId = (env.B2_KEY_ID || "").trim();
   const appKey = (env.B2_APP_KEY || "").trim();
-  if (!rawEndpoint || !bucket || !keyId || !appKey) return null;
-  const endpoint = rawEndpoint.replace(/\/+$/, "");
-  const m = endpoint.match(/^https:\/\/([a-z0-9-]+)\.([a-z0-9-]+)\.backblazeb2\.com$/i);
-  return { endpoint, bucket, keyId, appKey, region: m ? m[2] : "us-west-004", host: new URL(endpoint).host };
+  let raw = (env.B2_ENDPOINT || "").trim();
+  if (!raw || !bucket || !keyId || !appKey) return null;
+
+  // Forgiving by design: accept a missing scheme, a trailing slash, or a pasted URL.
+  let endpoint = raw.replace(/\/+$/, "");
+  if (!/^[a-z]+:\/\//i.test(endpoint)) endpoint = "https://" + endpoint;
+  endpoint = endpoint.replace(/^http:\/\//i, "https://");
+
+  let host;
+  try { host = new URL(endpoint).host; } catch {
+    return { problem: "B2_ENDPOINT is not a valid address. It should be https://s3.<region>.backblazeb2.com" };
+  }
+  if (!host.endsWith(".backblazeb2.com")) {
+    return { problem: `B2_ENDPOINT points at "${host}", which is not a Backblaze address. It should look like https://s3.us-west-004.backblazeb2.com` };
+  }
+  const m = host.match(/(?:^|\.)s3\.([a-z0-9-]+)\.backblazeb2\.com$/i);
+  if (!m) {
+    return { problem: `B2_ENDPOINT is missing the "s3." part. It should be https://s3.<region>.backblazeb2.com — not the f001.backblazeb2.com/file/... download link.` };
+  }
+  return { endpoint, bucket, keyId, appKey, region: m[1], host };
 }
 
 /** One signed call. Returns the raw Response so callers can stream bodies. */

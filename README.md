@@ -1,11 +1,14 @@
-# Rahat DeSecret v0.3
+# Rahat DeSecret v0.4
 
 A private, owner-only AI workstation that runs on Cloudflare Workers + D1. Free-only by design.
 
 **What works now:** owner login (PBKDF2, throttling, revocable sessions, CSRF, optional authenticator 2FA), streaming chat with a
 searchable free-model picker, a provider router (OpenRouter, Groq, Cerebras, Hugging Face, Workers AI, plus custom OpenAI-compatible),
 agents, projects, tasks with history, long-term memory that is retrieved into chats, dashboard, audit log,
-and **file storage** (images, PDFs, documents, audio, video) in Backblaze B2 with a 10 GB free hard stop.
+file storage (images, PDFs, documents, audio, video) in Backblaze B2 with a 10 GB free hard stop, a seeded
+**Rahat CEO** agent, and a built-in diagnostics screen.
+
+**v0.4 UI:** chat is the home screen. Tasks and Models left the main menu (still reachable from Settings → Advanced).
 
 **Not built yet** (see docs/STATUS.md): approval queue, multi-agent orchestration, tool registry. They are next.
 

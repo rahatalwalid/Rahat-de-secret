@@ -1,4 +1,4 @@
-# Status and security checklist (v0.3)
+# Status and security checklist (v0.4)
 
 ## Implemented and tested (local only: SQLite-backed D1 shim, mocked providers, headless Chromium)
 103 backend integration tests + 26 browser tests, all passing.
@@ -17,6 +17,14 @@
 Everything above has only run locally. Unverified there: D1 behavior and quotas, Workers CPU limit for password hashing,
 Workers AI binding calls and model names, real provider responses (OpenRouter `max_price`, Groq/Cerebras/HF catalog shapes),
 very large catalog syncs under the Free CPU limit, `_headers` handling, Workers Builds deploy.
+
+## Added in v0.4
+- Chat is the home screen; unknown routes fall back to chat
+- Main navigation reduced to Chat, Projects, Agents, Memory, Files, Settings (Tasks and Models moved under Settings → Advanced; nothing was deleted)
+- Grey/black theme
+- `Rahat CEO` agent seeded once (`INSERT OR IGNORE`, id `rahat-ceo`) and preselected for new chats
+- `GET /api/diagnostics` — per-table health checks so a failure names the broken table instead of "Something went wrong"
+- The app shell no longer calls `/api/overview`, the endpoint that was returning 500
 
 ## Added in v0.3 (file storage)
 - `files` table (additive: `CREATE TABLE IF NOT EXISTS`, schema version 2 — no existing table touched)

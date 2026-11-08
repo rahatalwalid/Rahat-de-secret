@@ -162,9 +162,15 @@ async function testLegacyMigration() {
   r = await c.call("GET", "/api/memory");
   ok(r.data.items.find((m) => m.id === "mem1").category === "general", "legacy memory survives and gets a category");
   r = await c.call("GET", "/api/system/status");
-  ok(r.data.schemaVersion === 2 && r.data.warnings.length === 0 && r.data.freeOnly === true, "status reports schema version, no warnings, free-only", r.data);
+  ok(r.data.schemaVersion === 3 && r.data.warnings.length === 0 && r.data.freeOnly === true, "status reports schema version, no warnings, free-only", r.data);
   const tables = (await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()).results.map((x) => x.name);
   ok(["conversations", "messages", "agents", "projects", "tasks", "memory", "audit_log", "owner", "sessions", "providers", "models"].every((t) => tables.includes(t)), "all expected tables exist");
+  ok(tables.includes("files"), "files table exists");
+  const ceo = await env.DB.prepare("SELECT name,instructions FROM agents WHERE id='rahat-ceo'").first();
+  ok(ceo && ceo.name === "Rahat CEO" && /strategist/i.test(ceo.role || ceo.instructions || ""), "Rahat CEO agent is seeded", ceo);
+  const diag = await c.call("GET", "/api/diagnostics");
+  ok(diag.status === 200 && diag.data.ok === true, "diagnostics reports every check passing", diag.data && diag.data.checks.filter((x) => !x.ok));
+  ok(diag.data.checks.some((x) => x.name === "Rahat CEO agent" && x.value === 1), "diagnostics sees the CEO agent");
 }
 
 async function testCrud() {

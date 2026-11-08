@@ -143,7 +143,55 @@ export async function crudRoutes(c) {
   }
   if (path === "/api/system/status" && method === "GET") {
     const v = await one(db, "SELECT value FROM schema_meta WHERE key='version'");
-    return json({ app: "Rahat DeSecret", version: "0.3.0", schemaVersion: v ? +v.value : 0, expectedSchemaVersion: SCHEMA_VERSION, warnings: await schemaWarnings(db), freeOnly: true, bindings: { db: true, ai: !!env.AI }, setupTokenConfigured: !!(env.SETUP_TOKEN && env.SETUP_TOKEN.length >= 24) });
+    return json({ app: "Rahat DeSecret", version: "0.4.0", schemaVersion: v ? +v.value : 0, expectedSchemaVersion: SCHEMA_VERSION, warnings: await schemaWarnings(db), freeOnly: true, bindings: { db: true, ai: !!env.AI }, setupTokenConfigured: !!(env.SETUP_TOKEN && env.SETUP_TOKEN.length >= 24) });
+  }
+  if (path === "/api/diagnostics" && method === "GET") {
+    // v0.4: one request that reports exactly which part of the database is broken,
+    // instead of a bare "Something went wrong on the server."
+    const probes = [
+      ["database", "SELECT 1 AS n"],
+      ["tables", "SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table'"],
+      ["owner account", "SELECT COUNT(*) AS n FROM owner WHERE id=1"],
+      ["sessions", "SELECT COUNT(*) AS n FROM sessions"],
+      ["settings", "SELECT COUNT(*) AS n FROM settings"],
+      ["providers", "SELECT COUNT(*) AS n FROM providers"],
+      ["models", "SELECT COUNT(*) AS n FROM models"],
+      ["conversations", "SELECT COUNT(*) AS n FROM conversations"],
+      ["messages", "SELECT COUNT(*) AS n FROM messages"],
+      ["agents", "SELECT COUNT(*) AS n FROM agents"],
+      ["Rahat CEO agent", "SELECT COUNT(*) AS n FROM agents WHERE id='rahat-ceo'"],
+      ["projects", "SELECT COUNT(*) AS n FROM projects"],
+      ["tasks", "SELECT COUNT(*) AS n FROM tasks"],
+      ["memory", "SELECT COUNT(*) AS n FROM memory"],
+      ["files", "SELECT COUNT(*) AS n FROM files"],
+      ["usage records", "SELECT COUNT(*) AS n FROM usage_records"],
+      ["audit log", "SELECT COUNT(*) AS n FROM audit_log"],
+    ];
+    const checks = [];
+    for (const [name, sql] of probes) {
+      const t0 = Date.now();
+      try {
+        const r = await one(db, sql);
+        checks.push({ name, ok: true, ms: Date.now() - t0, value: r ? r.n : null });
+      } catch (e) {
+        checks.push({ name, ok: false, ms: Date.now() - t0, error: String(e && e.message || e).slice(0, 300) });
+      }
+    }
+    const env_checks = [
+      { name: "D1 binding (DB)", ok: !!env.DB },
+      { name: "Workers AI binding", ok: !!env.AI },
+      { name: "SETUP_TOKEN", ok: !!(env.SETUP_TOKEN && env.SETUP_TOKEN.length >= 24) },
+      { name: "B2 settings", ok: !!(env.B2_BUCKET && env.B2_ENDPOINT && env.B2_KEY_ID && env.B2_APP_KEY) },
+      { name: "OpenRouter key", ok: !!env.OPENROUTER_API_KEY },
+    ];
+    const failed = checks.filter((c) => !c.ok);
+    return json({
+      ok: failed.length === 0,
+      schemaVersion: (await one(db, "SELECT value FROM schema_meta WHERE key='version'").catch(() => null))?.value ?? null,
+      expected: SCHEMA_VERSION,
+      checks, environment: env_checks,
+      requestId: c.req.headers.get("CF-Ray") || null,
+    });
   }
   if (path === "/api/audit" && method === "GET") {
     const limit = Math.min(200, parseInt(url.searchParams.get("limit") || "50", 10) || 50);

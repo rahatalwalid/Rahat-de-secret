@@ -2,7 +2,7 @@
 // Works whether D1 is empty, holds the v0.1 foundation schema, or a close variant of it.
 import { now } from "./util.js";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const list = async (db, sql, ...b) => (await db.prepare(sql).bind(...b).all()).results;
 export const one = (db, sql, ...b) => db.prepare(sql).bind(...b).first();
@@ -105,6 +105,20 @@ async function migrate(db) {
     await run(db, "INSERT OR IGNORE INTO providers(id,name,kind,base_url,key_env,free_policy,enabled,created_at) VALUES(?,?,?,?,?,?,0,?)", p.id, p.name, p.kind, p.base_url, p.key_env, p.free_policy, t);
   for (const [mid, name] of WORKERS_AI_SEEDS)
     await run(db, "INSERT OR IGNORE INTO models(key,provider_id,model_id,name,free,free_basis,status,manual,last_seen_at,created_at) VALUES(?,?,?,?,1,'seed_unverified','active',1,?,?)", "workersai:" + mid, "workersai", mid, name, t, t);
+  // v0.4: the default agent. INSERT OR IGNORE, so it is created once and never overwrites edits.
+  const CEO_INSTRUCTIONS = "You are Rahat CEO, the owner's strategist and coordinator. "
+    + "Start by restating the goal in one line. Then give the recommendation first, the reasoning second, "
+    + "and finish with concrete next actions that have an owner and a first step. "
+    + "Be explicit about what you do not know and what you could not verify. "
+    + "Never claim you performed an external action (posting, sending, buying, deleting, publishing) — "
+    + "you can only draft or recommend it until the owner approves it.";
+  await run(db, "INSERT OR IGNORE INTO agents(id,name,role,instructions,status,created_at,description,personality,capabilities,tools,updated_at) VALUES(?,?,?,?,'active',?,?,?,?,?,?)",
+    "rahat-ceo", "Rahat CEO", "Strategist and coordinator of this workspace",
+    CEO_INSTRUCTIONS, now(),
+    "Turns goals into plans, priorities and next actions across every project.",
+    "Direct, calm, evidence-first. Says what is uncertain instead of guessing.",
+    "Planning, prioritisation, research synthesis, drafting, review",
+    "", now());
   await run(db, "INSERT INTO schema_meta(key,value) VALUES('version',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", String(SCHEMA_VERSION));
 }
 
