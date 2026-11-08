@@ -17,5 +17,5 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
           git add -A
-          git commit -m "Unpack Rahat DeSecret v0.3" || echo "Nothing to commit"
+          git commit -m "Unpack Rahat DeSecret v0.4 (1)" || echo "Nothing to commit"
           git push
