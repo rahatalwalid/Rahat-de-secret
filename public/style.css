@@ -182,3 +182,9 @@ dialog.tall .sheet-in{height:100%}
 .code-secret code{font-family:var(--mono);font-size:1.05rem;user-select:all}
 .prov .section{margin-top:12px}
 .btn.primary[disabled]{background:var(--raised);border-color:var(--line);color:var(--muted)}
+
+/* files */
+.bar{height:8px;background:var(--raised);border-radius:5px;overflow:hidden;margin:10px 0 6px}
+.bar>i{display:block;height:100%;background:var(--accent);transition:width .3s}
+.bar.full>i{background:var(--danger)}
+.fileacts{display:flex;gap:6px;flex:0 0 auto}

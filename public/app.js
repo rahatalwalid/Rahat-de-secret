@@ -10,6 +10,7 @@ const ICON = {
   menu: "M4 7h16M4 12h16M4 17h16", plus: "M12 5v14M5 12h14", send: "M4 12l16-8-6 16-3-7z", stop: "M7 7h10v10H7z",
   star: "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z", search: "M11 4a7 7 0 100 14 7 7 0 000-14zM21 21l-5-5",
   trash: "M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13", x: "M6 6l12 12M18 6L6 18", pin: "M9 4h6l-1 6 3 3H7l3-3zM12 13v7", more: "M5 12h.01M12 12h.01M19 12h.01",
+  disk: "M4 6h16v12H4zM8 10h8M8 14h5",
 };
 function svg(name, cls = "icon") {
   const s = document.createElementNS(NS, "svg");
@@ -143,7 +144,7 @@ function showAuth(mode, st = {}) {
 }
 
 /* ---------- shell + router ---------- */
-const NAV = [["home", "Home", "home"], ["chat", "Chat", "chat"], ["projects", "Projects", "folder"], ["tasks", "Tasks", "check"], ["agents", "Agents", "bot"], ["memory", "Memory", "book"], ["models", "Models", "cpu"], ["settings", "Settings", "gear"]];
+const NAV = [["home", "Home", "home"], ["chat", "Chat", "chat"], ["projects", "Projects", "folder"], ["tasks", "Tasks", "check"], ["agents", "Agents", "bot"], ["memory", "Memory", "book"], ["models", "Models", "cpu"], ["settings", "Settings", "gear"], ["files", "Files", "disk"]];
 const BOTTOM = ["home", "chat", "tasks", "models"];
 async function startShell() {
   const app = $("#app");
@@ -160,7 +161,7 @@ async function startShell() {
 function openMore() {
   let dlg;
   const item = (id, label, icon) => h("a", { class: "item click", href: "#/" + id, onclick: () => dlg.close() }, svg(icon), h("span", { class: "title" }, label));
-  dlg = openDialog([h("h2", {}, "More"), h("div", { class: "list" }, item("projects", "Projects", "folder"), item("agents", "Agents", "bot"), item("memory", "Memory", "book"), item("settings", "Settings", "gear")), h("div", { class: "sheet-foot" }, btn("Close", { class: "ghost", onclick: () => dlg.close() }))]);
+  dlg = openDialog([h("h2", {}, "More"), h("div", { class: "list" }, item("projects", "Projects", "folder"), item("agents", "Agents", "bot"), item("memory", "Memory", "book"), item("files", "Files", "disk"), item("settings", "Settings", "gear")), h("div", { class: "sheet-foot" }, btn("Close", { class: "ghost", onclick: () => dlg.close() }))]);
 }
 const VIEWS = {};
 async function route() {
@@ -446,6 +447,126 @@ VIEWS.memory = async (el) => {
   const cs = h("select", { class: "inline", "aria-label": "Category", onchange: () => { cat = cs.value; load(); } }, h("option", { value: "" }, "All categories"), Object.entries(CAT).map(([v, l]) => h("option", { value: v }, l)));
   el.replaceChildren(h("div", { class: "page" }, h("div", { class: "head" }, h("h1", { class: "grow" }, "Memory"), btn("New memory", { class: "primary", onclick: () => edit() }, "plus")), h("div", { class: "row wrap" }, h("div", { class: "grow" }, search), cs), h("div", { class: "section" }, list)));
   load();
+};
+
+/* ---------- Files (binary storage in Backblaze B2, metadata in D1) ---------- */
+const fmtB = (n) => {
+  n = Number(n) || 0;
+  if (n >= 1024 ** 3) return (n / 1024 ** 3).toFixed(2) + " GB";
+  if (n >= 1048576) return (n / 1048576).toFixed(1) + " MB";
+  if (n >= 1024) return Math.round(n / 1024) + " KB";
+  return n + " B";
+};
+VIEWS.files = async (el) => {
+  let q = "";
+  const body = h("div", {});
+  const picker = h("input", { type: "file", multiple: true, hidden: true, onchange: () => upload(picker.files) });
+
+  async function upload(list) {
+    const files = [...(list || [])];
+    if (!files.length) return;
+    for (const f of files) {
+      try {
+        const res = await fetch("/api/files", {
+          method: "POST", credentials: "same-origin",
+          headers: {
+            "X-File-Name": encodeURIComponent(f.name),
+            "Content-Type": f.type || "application/octet-stream",
+            "X-CSRF-Token": S.csrf,
+          },
+          body: f,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new ApiError(data, res.status);
+        toast(f.name + " uploaded", "ok");
+      } catch (e) {
+        if (e.status === 401) return boot();
+        toast(f.name + ": " + e.message, "bad");
+        if (e.code === "STORAGE_FULL") break;   // quota is a hard stop: stop offering more
+      }
+    }
+    picker.value = "";
+    paint();
+  }
+
+  async function testConn() {
+    try {
+      const r = await api("/storage/test", { method: "POST", body: {} });
+      toast("Connected to " + r.bucket + " in " + r.ms + " ms", "ok");
+    } catch (e) { if (e.status !== 401) toast(e.message, "bad"); }
+  }
+
+  async function del(f) {
+    await confirmType("file", f.name, async () => {
+      await api("/files/" + f.id + "?confirm=" + encodeURIComponent(f.name), { method: "DELETE" });
+      toast("Deleted " + f.name, "ok");
+      paint();
+    });
+  }
+
+  async function paint() {
+    let st;
+    try { st = await api("/storage"); } catch (e) { if (e.status === 401) return; body.replaceChildren(h("div", { class: "notice bad" }, e.message)); return; }
+
+    const head = h("div", { class: "head" },
+      h("h1", { class: "grow" }, "Files"),
+      st.configured ? btn("Upload", { class: "primary", onclick: () => picker.click() }, "plus") : null);
+
+    if (!st.configured) {
+      body.replaceChildren(head, h("div", { class: "section" }, h("div", { class: "notice" },
+        h("b", {}, "Storage is not connected yet. "),
+        "Add these four values in Cloudflare: Worker, Settings, Variables and Secrets.",
+        h("div", { class: "small section" },
+          h("div", {}, "B2_BUCKET — your bucket name, for example rahat-desecret"),
+          h("div", {}, "B2_ENDPOINT — for example https://s3.us-west-004.backblazeb2.com"),
+          h("div", {}, "B2_KEY_ID — Secret"),
+          h("div", {}, "B2_APP_KEY — Secret")),
+        h("p", { class: "small muted section" }, "Then reload this page. Nothing is uploaded anywhere until you do."))));
+      return;
+    }
+
+    const pct = st.totalBytes ? Math.min(100, (st.usedBytes / st.totalBytes) * 100) : 0;
+    const bar = h("div", { class: "section" },
+      h("div", { class: "row" },
+        h("div", { class: "grow" }, h("div", { class: "title" }, "Storage"),
+          h("div", { class: "small muted" }, fmtB(st.usedBytes) + " used of " + fmtB(st.totalBytes) + " · " + fmtB(st.remainingBytes) + " free")),
+        st.full ? h("span", { class: "badge bad" }, "full") : h("span", { class: "badge ok" }, pct.toFixed(1) + "%")));
+
+    // set width without inline styles (CSP blocks the style attribute)
+    const track = h("div", { class: "bar" + (st.full ? " full" : "") }, h("i", {}));
+    track.firstChild.style.width = pct.toFixed(2) + "%";
+    bar.append(track, h("p", { class: "small muted" }, "Binaries live in Backblaze B2; this database only holds names, sizes and ids. Nothing is ever moved or upgraded automatically."));
+
+    if (st.full) {
+      bar.append(h("div", { class: "notice section" }, h("b", {}, "Storage is full. "), "New uploads are refused. Delete something to free space — nothing was deleted for you."));
+    }
+
+    const search = h("input", { type: "search", placeholder: "Search files", "aria-label": "Search files", value: q, oninput: () => { clearTimeout(search._t); search._t = setTimeout(() => { q = search.value.trim(); list_(); }, 250); } });
+
+    const listEl = h("div", { class: "list" });
+    async function list_() {
+      let r;
+      try { r = await api("/files" + (q ? "?q=" + encodeURIComponent(q) : "")); } catch (e) { if (e.status !== 401) toast(e.message, "bad"); return; }
+      listEl.replaceChildren(...(r.files.length ? r.files.map((f) => h("div", { class: "item" },
+        h("div", { class: "grow" },
+          h("div", { class: "title" }, f.name),
+          h("div", { class: "sub" }, fmtB(f.size) + " · " + ago(f.createdAt))),
+        h("span", { class: "badge" }, (f.mime || "").split("/")[0] || "file"),
+        h("div", { class: "fileacts" },
+          h("a", { class: "btn sm", href: "/api/files/" + f.id + "/download", download: f.name }, "Open"),
+          btn("", { class: "sm danger", "aria-label": "Delete " + f.name, onclick: () => del(f) }, "trash"))))
+        : [h("div", { class: "empty" }, h("b", {}, q ? "No matches" : "No files yet"),
+            q ? "Try another search." : "Tap Upload to add images, PDFs, audio or video. Images are limited to " + Math.round(st.limits.imageBytes / 1048576) + " MB, other files to " + Math.round(st.limits.otherBytes / 1048576) + " MB.")]));
+    }
+
+    body.replaceChildren(head, bar,
+      h("div", { class: "row section" }, h("div", { class: "grow" }, search), btn("Test", { class: "sm", onclick: guard(testConn) })),
+      h("div", { class: "section" }, listEl));
+    list_();
+  }
+
+  el.replaceChildren(h("div", { class: "page" }, body, picker));
+  paint();
 };
 
 /* ---------- Models ---------- */

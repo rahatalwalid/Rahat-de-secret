@@ -2,7 +2,7 @@
 // Works whether D1 is empty, holds the v0.1 foundation schema, or a close variant of it.
 import { now } from "./util.js";
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const list = async (db, sql, ...b) => (await db.prepare(sql).bind(...b).all()).results;
 export const one = (db, sql, ...b) => db.prepare(sql).bind(...b).first();
@@ -40,6 +40,8 @@ const NEW_TABLES = [
   `CREATE TABLE IF NOT EXISTS usage_records (id TEXT PRIMARY KEY, provider_id TEXT, model_key TEXT, ok INTEGER NOT NULL, status INTEGER, error_code TEXT, tokens_in INTEGER, tokens_out INTEGER, latency_ms INTEGER, created_at TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS agent_projects (agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, PRIMARY KEY(agent_id, project_id))`,
   `CREATE TABLE IF NOT EXISTS task_events (id TEXT PRIMARY KEY, task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE, event TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL)`,
+  // v0.3 file index. Binaries live in Backblaze B2; only metadata is stored here.
+  `CREATE TABLE IF NOT EXISTS files (id TEXT PRIMARY KEY, name TEXT NOT NULL, mime TEXT NOT NULL DEFAULT 'application/octet-stream', size_bytes INTEGER NOT NULL, storage_key TEXT NOT NULL, provider TEXT NOT NULL DEFAULT 'b2', sha256 TEXT, created_at TEXT NOT NULL, deleted_at TEXT)`,
 ];
 
 const INDEXES = [
@@ -53,6 +55,8 @@ const INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_sessions_exp ON sessions(expires_at)`,
   `CREATE INDEX IF NOT EXISTS idx_usage_created ON usage_records(created_at)`,
   `CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_files_created ON files(created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_files_sha ON files(sha256)`,
 ];
 
 export const PRESET_PROVIDERS = [

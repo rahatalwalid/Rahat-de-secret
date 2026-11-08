@@ -1,4 +1,4 @@
-# Status and security checklist (v0.2)
+# Status and security checklist (v0.3)
 
 ## Implemented and tested (local only: SQLite-backed D1 shim, mocked providers, headless Chromium)
 103 backend integration tests + 26 browser tests, all passing.
@@ -17,6 +17,13 @@
 Everything above has only run locally. Unverified there: D1 behavior and quotas, Workers CPU limit for password hashing,
 Workers AI binding calls and model names, real provider responses (OpenRouter `max_price`, Groq/Cerebras/HF catalog shapes),
 very large catalog syncs under the Free CPU limit, `_headers` handling, Workers Builds deploy.
+
+## Added in v0.3 (file storage)
+- `files` table (additive: `CREATE TABLE IF NOT EXISTS`, schema version 2 — no existing table touched)
+- Upload, list, download, delete (name-confirmed), storage status, connection test, suggestions
+- Hard stop at `STORAGE_QUOTA_BYTES` (default 10 GB): refused before any byte is read, no upgrade path, no provider switch, no auto-delete
+- Per-type caps: 10 MB images, 30 MB other (`MAX_IMAGE_BYTES`, `MAX_FILE_BYTES`)
+- 39 storage tests pass locally against a mocked B2 endpoint. **Not yet tested against a real bucket** — the Test button in the Files view is that verification.
 
 ## Not implemented
 Approval queue (and server-side approval enforcement), multi-agent orchestration, tool registry, agent runs, spend/usage quotas UI,

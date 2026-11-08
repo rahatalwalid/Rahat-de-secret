@@ -162,7 +162,7 @@ async function testLegacyMigration() {
   r = await c.call("GET", "/api/memory");
   ok(r.data.items.find((m) => m.id === "mem1").category === "general", "legacy memory survives and gets a category");
   r = await c.call("GET", "/api/system/status");
-  ok(r.data.schemaVersion === 1 && r.data.warnings.length === 0 && r.data.freeOnly === true, "status reports schema version, no warnings, free-only", r.data);
+  ok(r.data.schemaVersion === 2 && r.data.warnings.length === 0 && r.data.freeOnly === true, "status reports schema version, no warnings, free-only", r.data);
   const tables = (await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()).results.map((x) => x.name);
   ok(["conversations", "messages", "agents", "projects", "tasks", "memory", "audit_log", "owner", "sessions", "providers", "models"].every((t) => tables.includes(t)), "all expected tables exist");
 }

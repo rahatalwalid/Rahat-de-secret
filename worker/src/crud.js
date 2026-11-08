@@ -143,7 +143,7 @@ export async function crudRoutes(c) {
   }
   if (path === "/api/system/status" && method === "GET") {
     const v = await one(db, "SELECT value FROM schema_meta WHERE key='version'");
-    return json({ app: "Rahat DeSecret", version: "0.2.0", schemaVersion: v ? +v.value : 0, expectedSchemaVersion: SCHEMA_VERSION, warnings: await schemaWarnings(db), freeOnly: true, bindings: { db: true, ai: !!env.AI }, setupTokenConfigured: !!(env.SETUP_TOKEN && env.SETUP_TOKEN.length >= 24) });
+    return json({ app: "Rahat DeSecret", version: "0.3.0", schemaVersion: v ? +v.value : 0, expectedSchemaVersion: SCHEMA_VERSION, warnings: await schemaWarnings(db), freeOnly: true, bindings: { db: true, ai: !!env.AI }, setupTokenConfigured: !!(env.SETUP_TOKEN && env.SETUP_TOKEN.length >= 24) });
   }
   if (path === "/api/audit" && method === "GET") {
     const limit = Math.min(200, parseInt(url.searchParams.get("limit") || "50", 10) || 50);

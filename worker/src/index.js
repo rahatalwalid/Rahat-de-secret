@@ -3,6 +3,7 @@ import { ensureSchema } from "./lib/db.js";
 import { authRoutes, authenticate, clientIpHash, guardUnsafe } from "./auth.js";
 import { crudRoutes } from "./crud.js";
 import { llmRoutes } from "./llm.js";
+import { filesRoutes } from "./files.js";
 
 async function handleApi(req, env, ctx, url) {
   if (!env.DB) throw new HttpError(500, "NO_DB", "The D1 binding named DB is missing on this Worker.");
@@ -19,7 +20,7 @@ async function handleApi(req, env, ctx, url) {
   if (!c.session) throw new HttpError(401, "UNAUTHENTICATED", "Sign in to continue.");
   if (method !== "GET" && method !== "HEAD") await guardUnsafe(req, url, c.session);
 
-  for (const handler of [authRoutes, llmRoutes, crudRoutes]) {
+  for (const handler of [authRoutes, llmRoutes, crudRoutes, filesRoutes]) {
     const r = await handler(c);
     if (r) return r;
   }
