@@ -153,11 +153,13 @@ async function startShell() {
   const link = ([id, label, icon]) => h("a", { class: "nav-item", href: "#/" + id, "data-nav": id }, svg(icon), label);
   const more = h("button", { type: "button", class: "nav-item", onclick: openMore, "data-nav": "more" }, svg("more"), "More");
   app.replaceChildren(h("div", { class: "shell" },
-    h("nav", { class: "rail", "aria-label": "Main" }, h("div", { class: "brand" }, "RDS"), NAV.slice(0, -1).map(link), h("div", { class: "spacer" }), link(NAV[NAV.length - 1])),
+    h("header", { class: "top" },
+      h("div", { class: "brand" }, "rahatdesecret"),
+      h("nav", { class: "rail", "aria-label": "Main" }, NAV.map(link))),
     h("main", { class: "main" }, h("div", { class: "view", id: "view" })),
     h("nav", { class: "bottom", "aria-label": "Main" }, NAV.filter((n) => BOTTOM.includes(n[0])).map(link), more)));
   // v0.4: no longer depends on /api/overview, which was the endpoint failing with a 500.
-  try { const st = await api("/settings"); S.defaultModelKey = (st.settings && st.settings.default_model_key) || ""; } catch { /* chat shows it */ }
+  try { const st = await api("/settings"); S.defaultModelKey = st.defaultModelKey || (st.settings && st.settings.default_model_key) || ""; } catch { /* chat shows it */ }
   if (!location.hash || location.hash === "#/home" || location.hash === "#/") location.hash = "#/chat";
   route();
 }
@@ -239,11 +241,14 @@ VIEWS.chat = async (el, arg) => {
   el.className = "view flush";
   const st = (S.chat = { id: arg || null, conv: null, modelKey: "", agentId: "", projectId: "", busy: false });
   const [agents, projects] = await Promise.all([api("/agents"), api("/projects")]);
+  if (!S.defaultModelKey) { try { S.defaultModelKey = (await api("/settings")).defaultModelKey || ""; } catch { /* server will auto-pick */ } }
+  if (!st.modelKey) st.modelKey = S.defaultModelKey;
   let convList = h("div", { class: "scroll" }), convSearch = h("input", { type: "search", placeholder: "Search chats", "aria-label": "Search chats" });
   const drawer = h("aside", { class: "convs" }, h("div", { class: "convs-head" }, btn("New chat", { class: "primary grow", onclick: () => { drawer.classList.remove("open"); backdrop.classList.remove("open"); location.hash = "#/chat"; } }, "plus")), h("div", { class: "convs-head" }, convSearch), convList);
   const backdrop = h("div", { class: "backdrop", onclick: () => { drawer.classList.remove("open"); backdrop.classList.remove("open"); } });
   const title = h("button", { type: "button", class: "thread-title", onclick: rename }, "New chat");
-  const chip = h("button", { type: "button", class: "model-chip", onclick: choose }, h("span", { class: "dot" }), h("span", { class: "nm" }));
+  // v0.4: the model is picked for you; the chip is a label, not a chore.
+  const chip = h("span", { class: "model-chip", title: "Chosen automatically" }, h("span", { class: "dot" }), h("span", { class: "nm" }));
   const agentSel = h("select", { "aria-label": "Agent", onchange: () => ctxChange("agentId", agentSel.value) }, h("option", { value: "" }, "No agent"), agents.agents.map((a) => h("option", { value: a.id }, a.name + (a.status === "paused" ? " (paused)" : ""))));
   // v0.4: a fresh chat starts with the Rahat CEO agent already selected.
   if (!arg && agents.agents.some((a) => a.id === DEFAULT_AGENT && a.status === "active")) { st.agentId = DEFAULT_AGENT; agentSel.value = DEFAULT_AGENT; }

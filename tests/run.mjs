@@ -180,6 +180,8 @@ async function testCrud() {
   const p2 = (await c.call("POST", "/api/projects", { name: "Blog" })).data.project.id;
   r = await c.call("POST", "/api/agents", { name: "Dev", role: "Developer", instructions: "code well", projectIds: [pid] });
   const aid = r.data.agent.id; ok(r.status === 201, "create agent with project link");
+  r = await c.call("GET", "/api/settings");
+  ok(r.status === 200 && typeof r.data.defaultModelKey === "string", "settings exposes the automatic default model", r.data);
   r = await c.call("GET", "/api/agents"); ok(r.data.agents[0].project_ids[0] === pid, "agent lists assigned projects");
   r = await c.call("PATCH", `/api/agents/${aid}`, { status: "paused", instructions: "new" });
   ok(r.status === 200, "pause + edit agent");
@@ -210,6 +212,8 @@ async function testCrud() {
   r = await c.call("PATCH", `/api/conversations/${cid}`, { title: "Renamed", pinned: true }); ok(r.status === 200, "rename + pin conversation");
   r = await c.call("GET", "/api/conversations?q=renam"); ok(r.data.conversations.length === 1, "search conversations by title");
   r = await c.call("DELETE", `/api/conversations/${cid}`); ok(r.status === 200, "delete conversation");
+  r = await c.call("POST", `/api/conversations/${cid}/messages`, { content: "hi" });
+  ok(r.status === 404, "deleted conversation is really gone");
 }
 
 const sse = (events) => new ReadableStream({ start(c) { const e = new TextEncoder(); for (const x of events) c.enqueue(e.encode(x + "\n\n")); c.close(); } });

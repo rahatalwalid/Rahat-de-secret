@@ -1,4 +1,4 @@
-# Status and security checklist (v0.4)
+# Status and security checklist (v0.5)
 
 ## Implemented and tested (local only: SQLite-backed D1 shim, mocked providers, headless Chromium)
 103 backend integration tests + 26 browser tests, all passing.
@@ -17,6 +17,13 @@
 Everything above has only run locally. Unverified there: D1 behavior and quotas, Workers CPU limit for password hashing,
 Workers AI binding calls and model names, real provider responses (OpenRouter `max_price`, Groq/Cerebras/HF catalog shapes),
 very large catalog syncs under the Free CPU limit, `_headers` handling, Workers Builds deploy.
+
+## Added in v0.5
+- Complete visual rebuild: new stylesheet (design system v1), top-bar shell instead of a left rail, mobile bottom bar
+- Wordmark is `rahatdesecret`
+- Model selection is automatic (`resolveDefaultModel`): saved default first, otherwise the best free model on an enabled provider. The chat model chip is a label, not a picker
+- Deleting a conversation deletes its messages explicitly instead of relying on `ON DELETE CASCADE`
+- Unhandled 500s now return the real error text in `message`/`detail` (single-owner private app only) instead of "Something went wrong on the server."
 
 ## Added in v0.4
 - Chat is the home screen; unknown routes fall back to chat

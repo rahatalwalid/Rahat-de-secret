@@ -1,5 +1,5 @@
 import { HttpError, bad, json, now, readJson, secondsToUtcMidnight, sleep, str, uid } from "./lib/util.js";
-import { audit, list, one, run } from "./lib/db.js";
+import { audit, list, one, run, resolveDefaultModel } from "./lib/db.js";
 
 // Providers whose free quota is shared by the whole account (a hit blocks every model on them).
 const ACCOUNT_WIDE = new Set(["pricing", "credits", "allowlist"]);
@@ -303,7 +303,7 @@ export async function llmRoutes(c) {
 
   if (path === "/api/settings" && method === "GET") {
     const rows = await list(db, "SELECT key,value FROM settings");
-    return json({ settings: Object.fromEntries(rows.map((r) => [r.key, r.value])) });
+    return json({ settings: Object.fromEntries(rows.map((r) => [r.key, r.value])), defaultModelKey: await resolveDefaultModel(db) });
   }
   if (path === "/api/settings" && method === "PUT") {
     const b = await readJson(req);

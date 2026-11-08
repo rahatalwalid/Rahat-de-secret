@@ -1,4 +1,4 @@
-# Rahat DeSecret v0.4
+# rahatdesecret — v0.5
 
 A private, owner-only AI workstation that runs on Cloudflare Workers + D1. Free-only by design.
 
@@ -7,6 +7,8 @@ searchable free-model picker, a provider router (OpenRouter, Groq, Cerebras, Hug
 agents, projects, tasks with history, long-term memory that is retrieved into chats, dashboard, audit log,
 file storage (images, PDFs, documents, audio, video) in Backblaze B2 with a 10 GB free hard stop, a seeded
 **Rahat CEO** agent, and a built-in diagnostics screen.
+
+**v0.5 design:** the UI was rebuilt from scratch: new top-bar shell, new grey/black design system, new wordmark. Chat is the landing screen and the model is chosen automatically — there is no model picker in the chat flow.
 
 **v0.4 UI:** chat is the home screen. Tasks and Models left the main menu (still reachable from Settings → Advanced).
 

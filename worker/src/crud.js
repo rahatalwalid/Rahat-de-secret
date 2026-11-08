@@ -1,5 +1,5 @@
 import { HttpError, bad, bool, dateOrNull, int, json, now, oneOf, readJson, sseResponse, str, uid } from "./lib/util.js";
-import { audit, list, one, run, schemaWarnings, SCHEMA_VERSION } from "./lib/db.js";
+import { audit, list, one, resolveDefaultModel, run, schemaWarnings, SCHEMA_VERSION } from "./lib/db.js";
 import { deltaOf, generate, loadRoutable, recordSuccess, sseData } from "./llm.js";
 
 const TASK_STATUS = ["pending", "in_progress", "waiting_for_approval", "completed", "failed", "cancelled"];
@@ -66,8 +66,9 @@ async function chatRoute(c, cid) {
   const content = str(b.content, "Message", { max: 12000 }), stream = b.stream === true, retry = b.retry === true;
   const conv = await must(db, "conversations", cid, "Conversation");
   const settings = await one(db, "SELECT value FROM settings WHERE key='default_model_key'");
-  const modelKey = str(b.modelKey, "Model", { max: 300 }) || conv.model_key || (settings && settings.value);
-  if (!modelKey) throw new HttpError(400, "NO_MODEL", "Choose a model first.");
+  // v0.4: no manual model picking. Fall back to the saved default, then to the best free model.
+  const modelKey = str(b.modelKey, "Model", { max: 300 }) || conv.model_key || (settings && settings.value) || (await resolveDefaultModel(db));
+  if (!modelKey) throw new HttpError(400, "NO_MODEL", "No free model is ready yet. Add OPENROUTER_API_KEY in Cloudflare, then run Sync in Settings > Advanced > Models.");
   const model = await loadRoutable(env, modelKey); // enforces FREE_ONLY, attestation, key, cooldown
   const agent = conv.agent_id ? await one(db, "SELECT * FROM agents WHERE id=?", conv.agent_id) : null;
   if (agent && agent.status !== "active") throw new HttpError(409, "AGENT_PAUSED", `${agent.name} is paused. Activate it or choose another agent.`);
@@ -143,7 +144,7 @@ export async function crudRoutes(c) {
   }
   if (path === "/api/system/status" && method === "GET") {
     const v = await one(db, "SELECT value FROM schema_meta WHERE key='version'");
-    return json({ app: "Rahat DeSecret", version: "0.4.0", schemaVersion: v ? +v.value : 0, expectedSchemaVersion: SCHEMA_VERSION, warnings: await schemaWarnings(db), freeOnly: true, bindings: { db: true, ai: !!env.AI }, setupTokenConfigured: !!(env.SETUP_TOKEN && env.SETUP_TOKEN.length >= 24) });
+    return json({ app: "Rahat DeSecret", version: "0.5.0", schemaVersion: v ? +v.value : 0, expectedSchemaVersion: SCHEMA_VERSION, warnings: await schemaWarnings(db), freeOnly: true, bindings: { db: true, ai: !!env.AI }, setupTokenConfigured: !!(env.SETUP_TOKEN && env.SETUP_TOKEN.length >= 24) });
   }
   if (path === "/api/diagnostics" && method === "GET") {
     // v0.4: one request that reports exactly which part of the database is broken,
@@ -230,7 +231,15 @@ export async function crudRoutes(c) {
       await run(db, `UPDATE conversations SET ${s.sql} WHERE id=?`, ...s.vals, id);
       return json({ ok: true });
     }
-    if (method === "DELETE") { await must(db, "conversations", id, "Conversation"); await run(db, "DELETE FROM conversations WHERE id=?", id); await audit(env, "conversation_deleted", id); return json({ ok: true }); }
+    if (method === "DELETE") {
+      await must(db, "conversations", id, "Conversation");
+      // Delete the messages explicitly instead of relying on ON DELETE CASCADE,
+      // so this works even where foreign-key enforcement differs.
+      await run(db, "DELETE FROM messages WHERE conversation_id=?", id);
+      await run(db, "DELETE FROM conversations WHERE id=?", id);
+      await audit(env, "conversation_deleted", id);
+      return json({ ok: true });
+    }
   }
   m = path.match(/^\/api\/conversations\/([^/]+)\/messages$/);
   if (m && method === "POST") return chatRoute(c, idParam(m[1]));

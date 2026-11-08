@@ -39,7 +39,10 @@ export function errorResponse(e, rid) {
     return json({ error: e.code, message: e.message, retryAfter: e.extra?.retryAfter }, e.status, extra);
   }
   console.error("unhandled", rid, e && e.stack ? e.stack : e);
-  return json({ error: "INTERNAL", message: "Something went wrong on the server.", requestId: rid }, 500);
+  // v0.4: this is a single-owner private workspace, so the real reason is far more
+  // useful than a blank "something went wrong". It is never shown to a stranger.
+  const detail = String((e && e.message) || e || "unknown").slice(0, 240);
+  return json({ error: "INTERNAL", message: "Server error: " + detail, detail, requestId: rid }, 500);
 }
 
 export async function readJson(req, max = 65536) {

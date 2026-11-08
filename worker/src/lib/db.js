@@ -146,3 +146,21 @@ export async function audit(env, action, detail = "", actor = "owner", ipHash = 
   try { await run(env.DB, "INSERT INTO audit_log(id,action,detail,created_at,actor,ip_hash) VALUES(?,?,?,?,?,?)", crypto.randomUUID(), action, String(detail).slice(0, 500), now(), actor, ipHash); }
   catch (e) { console.error("audit failed", e && e.message); }
 }
+
+// v0.4: the owner should never have to pick a model by hand.
+// Use the saved default if it still exists, otherwise take the best free, enabled model.
+export async function resolveDefaultModel(db) {
+  try {
+    const cur = await one(db, "SELECT value FROM settings WHERE key='default_model_key'");
+    if (cur && cur.value) {
+      const m = await one(db, "SELECT key FROM models WHERE key=? AND status='active'", cur.value);
+      if (m) return cur.value;
+    }
+    const pick = await one(db, "SELECT m.key FROM models m JOIN providers p ON p.id=m.provider_id WHERE m.free=1 AND m.status='active' AND p.enabled=1 ORDER BY m.favorite DESC, m.supports_tools DESC, COALESCE(m.context_length,0) DESC LIMIT 1");
+    if (pick && pick.key) {
+      await run(db, "INSERT INTO settings(key,value,updated_at) VALUES('default_model_key',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at", pick.key, now());
+      return pick.key;
+    }
+  } catch (e) { console.error("resolveDefaultModel failed", e && e.message); }
+  return "";
+}
