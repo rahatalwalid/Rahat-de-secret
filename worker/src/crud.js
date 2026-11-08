@@ -135,7 +135,7 @@ export async function crudRoutes(c) {
       db.prepare("SELECT status, COUNT(*) n FROM agents GROUP BY status"),
       db.prepare("SELECT (SELECT COUNT(*) FROM projects) projects,(SELECT COUNT(*) FROM conversations) conversations,(SELECT COUNT(*) FROM memory) memory,(SELECT COUNT(*) FROM models WHERE free=1 AND status='active') models,(SELECT COUNT(*) FROM providers WHERE enabled=1) providers"),
       db.prepare("SELECT id,title,updated_at FROM conversations ORDER BY updated_at DESC LIMIT 5"),
-      db.prepare("SELECT action,detail,created_at FROM audit_log ORDER BY created_at DESC LIMIT 8"),
+      db.prepare("SELECT action,created_at FROM audit_log ORDER BY created_at DESC LIMIT 8"),
       db.prepare("SELECT provider_id, COUNT(*) requests, SUM(ok) ok, SUM(COALESCE(tokens_in,0)+COALESCE(tokens_out,0)) tokens FROM usage_records WHERE created_at>=? GROUP BY provider_id").bind(midnight.toISOString()),
     ])).map((r) => r.results);
     const by = (rows) => Object.fromEntries(rows.map((r) => [r.status, r.n]));
@@ -144,7 +144,7 @@ export async function crudRoutes(c) {
   }
   if (path === "/api/system/status" && method === "GET") {
     const v = await one(db, "SELECT value FROM schema_meta WHERE key='version'");
-    return json({ app: "Rahat DeSecret", version: "0.5.0", schemaVersion: v ? +v.value : 0, expectedSchemaVersion: SCHEMA_VERSION, warnings: await schemaWarnings(db), freeOnly: true, bindings: { db: true, ai: !!env.AI }, setupTokenConfigured: !!(env.SETUP_TOKEN && env.SETUP_TOKEN.length >= 24) });
+    return json({ app: "rahatdesecret", version: "0.6.0", schemaVersion: v ? +v.value : 0, expectedSchemaVersion: SCHEMA_VERSION, warnings: await schemaWarnings(db), freeOnly: true, bindings: { db: true, ai: !!env.AI }, setupTokenConfigured: !!(env.SETUP_TOKEN && env.SETUP_TOKEN.length >= 24) });
   }
   if (path === "/api/diagnostics" && method === "GET") {
     // v0.4: one request that reports exactly which part of the database is broken,

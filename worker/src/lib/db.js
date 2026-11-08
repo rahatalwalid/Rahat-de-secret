@@ -2,7 +2,7 @@
 // Works whether D1 is empty, holds the v0.1 foundation schema, or a close variant of it.
 import { now } from "./util.js";
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const list = async (db, sql, ...b) => (await db.prepare(sql).bind(...b).all()).results;
 export const one = (db, sql, ...b) => db.prepare(sql).bind(...b).first();
@@ -26,7 +26,7 @@ const EXTRA_COLS = {
   projects: { goals: "TEXT NOT NULL DEFAULT ''", notes: "TEXT NOT NULL DEFAULT ''" },
   tasks: { priority: "TEXT NOT NULL DEFAULT 'normal'", due_at: "TEXT", progress: "INTEGER NOT NULL DEFAULT 0", result: "TEXT NOT NULL DEFAULT ''", completed_at: "TEXT" },
   memory: { category: "TEXT NOT NULL DEFAULT 'general'", title: "TEXT NOT NULL DEFAULT ''", project_id: "TEXT", tags: "TEXT NOT NULL DEFAULT ''", pinned: "INTEGER NOT NULL DEFAULT 0", updated_at: "TEXT" },
-  audit_log: { actor: "TEXT", ip_hash: "TEXT" },
+  audit_log: { detail: "TEXT NOT NULL DEFAULT ''", actor: "TEXT", ip_hash: "TEXT" },
 };
 
 const NEW_TABLES = [

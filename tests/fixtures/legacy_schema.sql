@@ -53,9 +53,10 @@ CREATE TABLE IF NOT EXISTS memory (
   created_at TEXT NOT NULL
 );
 
+-- Deliberately missing "detail": this is what production actually looked like,
+-- and every SELECT that asked for it returned a 500.
 CREATE TABLE IF NOT EXISTS audit_log (
   id TEXT PRIMARY KEY,
   action TEXT NOT NULL,
-  detail TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL
 );

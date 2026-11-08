@@ -247,8 +247,6 @@ VIEWS.chat = async (el, arg) => {
   const drawer = h("aside", { class: "convs" }, h("div", { class: "convs-head" }, btn("New chat", { class: "primary grow", onclick: () => { drawer.classList.remove("open"); backdrop.classList.remove("open"); location.hash = "#/chat"; } }, "plus")), h("div", { class: "convs-head" }, convSearch), convList);
   const backdrop = h("div", { class: "backdrop", onclick: () => { drawer.classList.remove("open"); backdrop.classList.remove("open"); } });
   const title = h("button", { type: "button", class: "thread-title", onclick: rename }, "New chat");
-  // v0.4: the model is picked for you; the chip is a label, not a chore.
-  const chip = h("span", { class: "model-chip", title: "Chosen automatically" }, h("span", { class: "dot" }), h("span", { class: "nm" }));
   const agentSel = h("select", { "aria-label": "Agent", onchange: () => ctxChange("agentId", agentSel.value) }, h("option", { value: "" }, "No agent"), agents.agents.map((a) => h("option", { value: a.id }, a.name + (a.status === "paused" ? " (paused)" : ""))));
   // v0.4: a fresh chat starts with the Rahat CEO agent already selected.
   if (!arg && agents.agents.some((a) => a.id === DEFAULT_AGENT && a.status === "active")) { st.agentId = DEFAULT_AGENT; agentSel.value = DEFAULT_AGENT; }
@@ -259,11 +257,21 @@ VIEWS.chat = async (el, arg) => {
   const composer = h("form", { class: "composer" }, input, sendBtn);
   const del = btn("", { class: "ghost sm", "aria-label": "Delete chat", onclick: delConv }, "trash");
   const thread = h("section", { class: "thread" },
-    h("div", { class: "thread-head" }, btn("", { class: "ghost sm convs-toggle", "aria-label": "Chats", onclick: () => { drawer.classList.add("open"); backdrop.classList.add("open"); } }, "menu"), title, chip, del),
-    h("div", { class: "ctx-row" }, agentSel, projSel), msgs, composer);
+    h("div", { class: "thread-head" }, btn("", { class: "ghost sm convs-toggle", "aria-label": "Chats", onclick: () => { drawer.classList.add("open"); backdrop.classList.add("open"); } }, "menu"), title,
+      btn("", { class: "ghost sm", "aria-label": "Chat settings", onclick: () => {
+        let d2;
+        d2 = openDialog([
+          h("h2", {}, "This chat"),
+          h("label", { class: "field" }, "Agent", agentSel),
+          h("label", { class: "field" }, "Project", projSel),
+          h("p", { class: "hint" }, "The model is chosen for you."),
+          h("div", { class: "sheet-foot" }, btn("Done", { class: "primary", onclick: () => d2.close() })),
+        ]);
+      } }, "more"), del),
+    msgs, composer);
   el.replaceChildren(h("div", { class: "chat" }, drawer, backdrop, thread));
 
-  const paintChip = () => { $(".nm", chip).textContent = modelLabel(st.modelKey); chip.firstChild.hidden = !st.modelKey; };
+  const paintChip = () => { /* v0.6: the model is never shown in the chat */ };
   const nearBottom = () => msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 140;
   const toBottom = () => { msgs.scrollTop = msgs.scrollHeight; };
   const hint = () => msgsIn.replaceChildren(h("div", { class: "empty" }, h("b", {}, "Start a conversation"), st.modelKey ? "Ask anything. Pick an agent or project above to give it context." : "Choose a free model first, then ask anything."));
